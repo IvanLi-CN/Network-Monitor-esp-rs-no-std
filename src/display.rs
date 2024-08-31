@@ -15,10 +15,10 @@ use embedded_graphics::{
     mono_font::MonoTextStyle,
     text::{Alignment, Baseline, Text, TextStyleBuilder},
 };
-use esp_hal::dma::Channel0;
+use esp_hal::dma::DmaChannel0;
 use esp_hal::gpio::{GpioPin, Output};
 use esp_hal::peripherals::SPI2;
-use esp_hal::spi::master::dma::SpiDma;
+use esp_hal::spi::master::SpiDmaBus;
 use esp_hal::spi::FullDuplexMode;
 use esp_hal::Async;
 use heapless::String;
@@ -29,7 +29,7 @@ pub(crate) type DisplayST7735 = ST7735<
     SpiDevice<
         'static,
         NoopRawMutex,
-        SpiDma<'static, SPI2, Channel0, FullDuplexMode, Async>,
+        SpiDmaBus<'static, SPI2, DmaChannel0, FullDuplexMode, Async>,
         Output<'static, GpioPin<10>>,
     >,
     Output<'static, GpioPin<7>>,

@@ -5,6 +5,7 @@
 #![feature(const_maybe_uninit_write)]
 #![feature(const_mut_refs)]
 #![feature(int_roundings)]
+#![feature(impl_trait_in_assoc_type)]
 
 use embassy_embedded_hal::shared_bus::asynch::spi::SpiDevice;
 use embassy_executor::Spawner;
@@ -14,22 +15,21 @@ use embassy_time::{Duration, Timer};
 use esp_backtrace as _;
 use esp_hal::dma::Dma;
 use esp_hal::dma::DmaPriority;
-use esp_hal::dma_descriptors;
+use esp_hal::dma::DmaRxBuf;
+use esp_hal::dma::DmaTxBuf;
+use esp_hal::dma_buffers;
 use esp_hal::gpio::{Io, Output};
 use esp_hal::ledc::{self, LSGlobalClkSource, Ledc, LowSpeed};
 use esp_hal::rng::Rng;
 use esp_hal::system::SystemControl;
 use esp_hal::timer::systimer::SystemTimer;
+use esp_hal::timer::systimer::Target;
 use esp_hal::timer::timg::TimerGroup;
-use esp_hal::timer::{OneShotTimer, PeriodicTimer};
 use esp_hal::{
     clock::{self, ClockControl},
     peripherals::Peripherals,
     prelude::*,
-    spi::{
-        master::{prelude::*, Spi},
-        SpiMode,
-    },
+    spi::{master::Spi, SpiMode},
 };
 use esp_println::println;
 use esp_wifi::wifi::WifiStaDevice;
@@ -63,23 +63,15 @@ async fn main(spawner: Spawner) {
 
     let system = SystemControl::new(peripherals.SYSTEM);
     let clocks: clock::Clocks<'static> = ClockControl::max(system.clock_control).freeze();
-    let systimer = SystemTimer::new(peripherals.SYSTIMER);
-    let timer0 = OneShotTimer::new(systimer.alarm0.into());
-    let timers = [timer0];
-    let timers = make_static!(timers);
-    esp_hal_embassy::init(&clocks, timers);
-
-    let timer = PeriodicTimer::new(
-        TimerGroup::new(peripherals.TIMG0, &clocks, None)
-            .timer0
-            .into(),
-    );
+    let systimer = SystemTimer::new(peripherals.SYSTIMER).split::<Target>();
+    esp_hal_embassy::init(&clocks, systimer.alarm0);
+    let timg0 = TimerGroup::new(peripherals.TIMG0, &clocks);
 
     // Wi-Fi
 
     let init = initialize(
         EspWifiInitFor::Wifi,
-        timer,
+        timg0.timer0,
         Rng::new(peripherals.RNG),
         peripherals.RADIO_CLK,
         &clocks,
@@ -108,16 +100,15 @@ async fn main(spawner: Spawner) {
 
     let sda = io.pins.gpio5;
     let sck = io.pins.gpio6;
-    let (tx_descriptors, rx_descriptors) = dma_descriptors!(32000, 4096);
+    let (tx_buffer, tx_descriptors, rx_buffer, rx_descriptors) = dma_buffers!(32000, 1024);
+    let mut dma_tx_buf = DmaTxBuf::new(tx_descriptors, tx_buffer).unwrap();
+    let mut dma_rx_buf = DmaRxBuf::new(rx_descriptors, rx_buffer).unwrap();
 
     let spi = Spi::new(peripherals.SPI2, 40u32.MHz(), SpiMode::Mode0, &clocks)
         .with_sck(sck)
         .with_mosi(sda)
-        .with_dma(
-            dma_channel.configure_for_async(false, DmaPriority::Priority0),
-            tx_descriptors,
-            rx_descriptors,
-        );
+        .with_dma(dma_channel.configure_for_async(false, DmaPriority::Priority0))
+        .with_buffers(dma_tx_buf, dma_rx_buf);
     let spi: Mutex<NoopRawMutex, _> = Mutex::new(spi);
     let spi = make_static!(spi);
 
