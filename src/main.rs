@@ -21,13 +21,10 @@ use esp_hal::dma_buffers;
 use esp_hal::gpio::{Io, Output};
 use esp_hal::ledc::{self, LSGlobalClkSource, Ledc, LowSpeed};
 use esp_hal::rng::Rng;
-use esp_hal::system::SystemControl;
 use esp_hal::timer::systimer::SystemTimer;
 use esp_hal::timer::systimer::Target;
 use esp_hal::timer::timg::TimerGroup;
 use esp_hal::{
-    clock::{self, ClockControl},
-    peripherals::Peripherals,
     prelude::*,
     spi::{master::Spi, SpiMode},
 };
@@ -54,18 +51,16 @@ async fn main(spawner: Spawner) {
 
     // Basic stuff
 
-    let peripherals = Peripherals::take();
+    let peripherals = esp_hal::init(esp_hal::Config::default());
 
     let io = Io::new(peripherals.GPIO, peripherals.IO_MUX);
 
     let mut blk_pin = io.pins.gpio4;
     blk_pin.set_high();
 
-    let system = SystemControl::new(peripherals.SYSTEM);
-    let clocks: clock::Clocks<'static> = ClockControl::max(system.clock_control).freeze();
     let systimer = SystemTimer::new(peripherals.SYSTIMER).split::<Target>();
-    esp_hal_embassy::init(&clocks, systimer.alarm0);
-    let timg0 = TimerGroup::new(peripherals.TIMG0, &clocks);
+    esp_hal_embassy::init(systimer.alarm0);
+    let timg0 = TimerGroup::new(peripherals.TIMG0);
 
     // Wi-Fi
 
@@ -74,7 +69,6 @@ async fn main(spawner: Spawner) {
         timg0.timer0,
         Rng::new(peripherals.RNG),
         peripherals.RADIO_CLK,
-        &clocks,
     )
     .unwrap();
     let wifi = peripherals.WIFI;
@@ -101,10 +95,10 @@ async fn main(spawner: Spawner) {
     let sda = io.pins.gpio5;
     let sck = io.pins.gpio6;
     let (tx_buffer, tx_descriptors, rx_buffer, rx_descriptors) = dma_buffers!(32000, 1024);
-    let mut dma_tx_buf = DmaTxBuf::new(tx_descriptors, tx_buffer).unwrap();
-    let mut dma_rx_buf = DmaRxBuf::new(rx_descriptors, rx_buffer).unwrap();
+    let dma_tx_buf = DmaTxBuf::new(tx_descriptors, tx_buffer).unwrap();
+    let dma_rx_buf = DmaRxBuf::new(rx_descriptors, rx_buffer).unwrap();
 
-    let spi = Spi::new(peripherals.SPI2, 40u32.MHz(), SpiMode::Mode0, &clocks)
+    let spi = Spi::new(peripherals.SPI2, 40u32.MHz(), SpiMode::Mode0)
         .with_sck(sck)
         .with_mosi(sda)
         .with_dma(dma_channel.configure_for_async(false, DmaPriority::Priority0))
@@ -137,7 +131,7 @@ async fn main(spawner: Spawner) {
     );
     let display = make_static!(display);
 
-    let mut ledc = Ledc::new(peripherals.LEDC, &clocks);
+    let mut ledc = Ledc::new(peripherals.LEDC);
 
     ledc.set_global_slow_clock(LSGlobalClkSource::APBClk);
 
