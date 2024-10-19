@@ -49,3 +49,6 @@ reqwless = "0.12.1"
 serde = {version = "1.0.210", default-features = false, features = ["derive"]}
 st7735 = {path = "./st7735"}
 static_cell = {version = "2.1.0", features = ["nightly"]}
+
+[profile.dev.package.esp-wifi]
+opt-level = 3
