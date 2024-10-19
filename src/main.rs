@@ -7,6 +7,7 @@
 #![feature(int_roundings)]
 #![feature(impl_trait_in_assoc_type)]
 
+use display::DisplayST7735;
 use embassy_embedded_hal::shared_bus::asynch::spi::SpiDevice;
 use embassy_executor::Spawner;
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
@@ -30,7 +31,7 @@ use esp_hal::{
 };
 use esp_println::println;
 use esp_wifi::wifi::WifiStaDevice;
-use esp_wifi::{initialize, EspWifiInitFor};
+use esp_wifi::{init, EspWifiInitFor};
 use st7735::ST7735;
 use static_cell::make_static;
 
@@ -45,9 +46,14 @@ use esp_backtrace as _;
 
 use crate::udp_client::receiving_net_speed;
 
+extern crate alloc;
+use esp_alloc as _;
+
 #[main]
 async fn main(spawner: Spawner) {
     esp_println::println!("Init main");
+
+    esp_alloc::heap_allocator!(72 * 1024);
 
     // Basic stuff
 
@@ -55,8 +61,7 @@ async fn main(spawner: Spawner) {
 
     let io = Io::new(peripherals.GPIO, peripherals.IO_MUX);
 
-    let mut blk_pin = io.pins.gpio4;
-    blk_pin.set_high();
+    let mut blk_pin = Output::new(io.pins.gpio4, esp_hal::gpio::Level::High);
 
     let systimer = SystemTimer::new(peripherals.SYSTIMER).split::<Target>();
     esp_hal_embassy::init(systimer.alarm0);
@@ -64,7 +69,7 @@ async fn main(spawner: Spawner) {
 
     // Wi-Fi
 
-    let init = initialize(
+    let init = init(
         EspWifiInitFor::Wifi,
         timg0.timer0,
         Rng::new(peripherals.RNG),
@@ -94,7 +99,7 @@ async fn main(spawner: Spawner) {
 
     let sda = io.pins.gpio5;
     let sck = io.pins.gpio6;
-    let (tx_buffer, tx_descriptors, rx_buffer, rx_descriptors) = dma_buffers!(32000, 1024);
+    let (rx_buffer, rx_descriptors, tx_buffer, tx_descriptors) = dma_buffers!(32000, 1024);
     let dma_tx_buf = DmaTxBuf::new(tx_descriptors, tx_buffer).unwrap();
     let dma_rx_buf = DmaRxBuf::new(rx_descriptors, rx_buffer).unwrap();
 
@@ -102,7 +107,7 @@ async fn main(spawner: Spawner) {
         .with_sck(sck)
         .with_mosi(sda)
         .with_dma(dma_channel.configure_for_async(false, DmaPriority::Priority0))
-        .with_buffers(dma_tx_buf, dma_rx_buf);
+        .with_buffers(dma_rx_buf, dma_tx_buf);
     let spi: Mutex<NoopRawMutex, _> = Mutex::new(spi);
     let spi = make_static!(spi);
 
@@ -129,7 +134,7 @@ async fn main(spawner: Spawner) {
         width,
         height,
     );
-    let display = make_static!(display);
+    let display: &mut DisplayST7735 = make_static!(display);
 
     let mut ledc = Ledc::new(peripherals.LEDC);
 

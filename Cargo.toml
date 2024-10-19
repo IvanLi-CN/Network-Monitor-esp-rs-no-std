@@ -27,6 +27,7 @@ esp-wifi = {version = "*", path = "/Users/ivan/Projects/open-source/esp-hal/esp-
   "dhcpv4",
   "embassy-net",
 ]}
+esp-alloc = {version = "*", path = "/Users/ivan/Projects/open-source/esp-hal/esp-alloc"}
 
 embassy-embedded-hal = "0.2.0"
 embassy-executor = {version = "0.6.0", features = ["nightly"]}
@@ -45,6 +46,6 @@ embedded-io-async = {version = "0.6.1"}
 heapless = {version = "0.8.0", features = ["serde"]}
 numtoa = "0.2.4"
 reqwless = "0.12.1"
-serde = {version = "1.0.209", default-features = false, features = ["derive"]}
+serde = {version = "1.0.210", default-features = false, features = ["derive"]}
 st7735 = {path = "./st7735"}
 static_cell = {version = "2.1.0", features = ["nightly"]}

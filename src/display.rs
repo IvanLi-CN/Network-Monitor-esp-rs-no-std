@@ -4,7 +4,7 @@ use embassy_embedded_hal::shared_bus::asynch::spi::SpiDevice;
 use embassy_futures::select::select;
 use embassy_sync::blocking_mutex::raw::{CriticalSectionRawMutex, NoopRawMutex};
 use embassy_sync::mutex::Mutex;
-use embassy_time::{Delay, Duration, Instant, Ticker, Timer};
+use embassy_time::{Delay, Duration, Instant, Ticker};
 use embedded_graphics::image::{Image, ImageRaw, ImageRawLE};
 use embedded_graphics::mono_font::ascii::FONT_10X20;
 use embedded_graphics::pixelcolor::{Rgb565, Rgb888};
@@ -15,8 +15,7 @@ use embedded_graphics::{
     mono_font::MonoTextStyle,
     text::{Alignment, Baseline, Text, TextStyleBuilder},
 };
-use esp_hal::dma::DmaChannel0;
-use esp_hal::gpio::{GpioPin, Output};
+use esp_hal::gpio::{AnyPin, Output};
 use esp_hal::peripherals::SPI2;
 use esp_hal::spi::master::SpiDmaBus;
 use esp_hal::spi::FullDuplexMode;
@@ -29,11 +28,11 @@ pub(crate) type DisplayST7735 = ST7735<
     SpiDevice<
         'static,
         NoopRawMutex,
-        SpiDmaBus<'static, SPI2, DmaChannel0, FullDuplexMode, Async>,
-        Output<'static, GpioPin<10>>,
+        SpiDmaBus<'static, SPI2, FullDuplexMode, Async>,
+        Output<'static, AnyPin>,
     >,
-    Output<'static, GpioPin<7>>,
-    Output<'static, GpioPin<8>>,
+    Output<'static, AnyPin>,
+    Output<'static, AnyPin>,
 >;
 
 #[embassy_executor::task]
