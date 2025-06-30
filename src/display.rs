@@ -15,24 +15,24 @@ use embedded_graphics::{
     mono_font::MonoTextStyle,
     text::{Alignment, Baseline, Text, TextStyleBuilder},
 };
-use esp_hal::gpio::{AnyPin, Output};
+
 use esp_hal::peripherals::SPI2;
-use esp_hal::spi::master::SpiDmaBus;
+use esp_hal::spi::master::dma::SpiDma;
 use esp_hal::spi::FullDuplexMode;
 use esp_hal::Async;
 use heapless::String;
 use st7735::ST7735;
-use static_cell::make_static;
+
 
 pub(crate) type DisplayST7735 = ST7735<
     SpiDevice<
         'static,
         NoopRawMutex,
-        SpiDmaBus<'static, SPI2, FullDuplexMode, Async>,
-        Output<'static, AnyPin>,
+        SpiDma<'static, SPI2, esp_hal::dma::Channel0, FullDuplexMode, Async>,
+        esp_hal::gpio::Output<'static, esp_hal::gpio::GpioPin<10>>,
     >,
-    Output<'static, AnyPin>,
-    Output<'static, AnyPin>,
+    esp_hal::gpio::Output<'static, esp_hal::gpio::GpioPin<7>>,
+    esp_hal::gpio::Output<'static, esp_hal::gpio::GpioPin<8>>,
 >;
 
 #[embassy_executor::task]
@@ -42,7 +42,8 @@ pub(crate) async fn init_display(display: &'static mut DisplayST7735) {
 
         gui.init().await;
 
-        let gui = make_static!(Mutex::<CriticalSectionRawMutex, GUI<'static>>::new(gui));
+        static GUI: static_cell::StaticCell<Mutex<CriticalSectionRawMutex, GUI<'static>>> = static_cell::StaticCell::new();
+        let gui = GUI.init(Mutex::<CriticalSectionRawMutex, _>::new(gui));
 
         let mut wifi_status: WiFiConnectStatus;
 

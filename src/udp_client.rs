@@ -8,7 +8,7 @@ use embassy_net::{
 use embassy_time::Timer;
 use esp_backtrace as _;
 use esp_wifi::wifi::{WifiDevice, WifiStaDevice};
-use static_cell::make_static;
+
 
 use crate::bus::{NetSpeed, WiFiConnectStatus, NET_SPEED, WIFI_CONNECT_STATUS};
 
@@ -30,21 +30,24 @@ pub async fn receiving_net_speed(stack: &'static Stack<WifiDevice<'static, WifiS
         Timer::after_millis(10).await;
     }
 
-    let rx_buf = [0u8; 4096];
-    let tx_buf = [0u8; 4096];
-    let rx_meta = [PacketMetadata::EMPTY; 16];
-    let tx_meta = [PacketMetadata::EMPTY; 16];
+    static RX_BUF: static_cell::StaticCell<[u8; 4096]> = static_cell::StaticCell::new();
+    let rx_buf = RX_BUF.init([0u8; 4096]);
 
-    let rx_buf = make_static!(rx_buf);
-    let tx_buf = make_static!(tx_buf);
-    let rx_meta = make_static!(rx_meta);
-    let tx_meta = make_static!(tx_meta);
+    static TX_BUF: static_cell::StaticCell<[u8; 4096]> = static_cell::StaticCell::new();
+    let tx_buf = TX_BUF.init([0u8; 4096]);
+
+    static RX_META: static_cell::StaticCell<[PacketMetadata; 16]> = static_cell::StaticCell::new();
+    let rx_meta = RX_META.init([PacketMetadata::EMPTY; 16]);
+
+    static TX_META: static_cell::StaticCell<[PacketMetadata; 16]> = static_cell::StaticCell::new();
+    let tx_meta = TX_META.init([PacketMetadata::EMPTY; 16]);
 
     let mut socket: UdpSocket<'static> = UdpSocket::new(stack, rx_meta, rx_buf, tx_meta, tx_buf);
 
     socket.bind(LOCAL_PORT).unwrap();
 
-    let socket: &'static mut UdpSocket<'static> = make_static!(socket);
+    static SOCKET: static_cell::StaticCell<UdpSocket<'static>> = static_cell::StaticCell::new();
+    let socket = SOCKET.init(socket);
 
     let spawner = Spawner::for_current_executor().await;
     spawner.spawn(keep_alive(socket)).ok();
