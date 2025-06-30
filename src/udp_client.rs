@@ -12,7 +12,7 @@ use esp_wifi::wifi::{WifiDevice, WifiStaDevice};
 
 use crate::bus::{NetSpeed, WiFiConnectStatus, NET_SPEED, WIFI_CONNECT_STATUS};
 
-static SERVER_IP: &str = "192.168.31.11:17890";
+static SERVER_IP: &str = env!("SERVER_ADDRESS");
 static LOCAL_PORT: u16 = 17891;
 
 #[embassy_executor::task]

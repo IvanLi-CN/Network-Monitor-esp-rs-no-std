@@ -21,3 +21,4 @@ build-std = ["alloc", "core"]
 [env]
 SSID = ""
 PASSWORD = ""
+SERVER_ADDRESS = ""
