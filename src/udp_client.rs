@@ -7,7 +7,7 @@ use embassy_net::{
 };
 use embassy_time::Timer;
 use esp_backtrace as _;
-use esp_wifi::wifi::{WifiDevice, WifiStaDevice};
+// use esp_wifi::wifi::WifiDevice; // Not needed
 
 
 use crate::bus::{NetSpeed, WiFiConnectStatus, NET_SPEED, WIFI_CONNECT_STATUS};
@@ -16,7 +16,7 @@ static SERVER_IP: &str = env!("SERVER_ADDRESS");
 static LOCAL_PORT: u16 = 17891;
 
 #[embassy_executor::task]
-pub async fn receiving_net_speed(stack: &'static Stack<WifiDevice<'static, WifiStaDevice>>) {
+pub async fn receiving_net_speed(stack: &'static Stack<'static>) {
     loop {
         let wifi_status_guard = WIFI_CONNECT_STATUS.lock().await;
         let wifi_status = *wifi_status_guard;
@@ -42,9 +42,12 @@ pub async fn receiving_net_speed(stack: &'static Stack<WifiDevice<'static, WifiS
     static TX_META: static_cell::StaticCell<[PacketMetadata; 16]> = static_cell::StaticCell::new();
     let tx_meta = TX_META.init([PacketMetadata::EMPTY; 16]);
 
-    let mut socket: UdpSocket<'static> = UdpSocket::new(stack, rx_meta, rx_buf, tx_meta, tx_buf);
+    let mut socket: UdpSocket<'static> = UdpSocket::new(*stack, rx_meta, rx_buf, tx_meta, tx_buf);
 
-    socket.bind(LOCAL_PORT).unwrap();
+    if let Err(e) = socket.bind(LOCAL_PORT) {
+        esp_println::println!("Failed to bind UDP socket to port {}: {:?}", LOCAL_PORT, e);
+        return;
+    }
 
     static SOCKET: static_cell::StaticCell<UdpSocket<'static>> = static_cell::StaticCell::new();
     let socket = SOCKET.init(socket);
@@ -63,9 +66,18 @@ async fn keep_alive(socket: &'static UdpSocket<'static>) {
 
         match wifi_status {
             WiFiConnectStatus::Connected => {
-                let msg: [u8; 2] = [0x01, 0x00];
-                let ip_addr = IpEndpoint::from_str(SERVER_IP).unwrap();
-                socket.send_to(&msg, ip_addr).await.unwrap();
+                if !SERVER_IP.is_empty() {
+                    let msg: [u8; 2] = [0x01, 0x00];
+                    if let Ok(ip_addr) = IpEndpoint::from_str(SERVER_IP) {
+                        if let Err(e) = socket.send_to(&msg, ip_addr).await {
+                            esp_println::println!("Failed to send UDP message: {:?}", e);
+                        }
+                    } else {
+                        esp_println::println!("Invalid SERVER_ADDRESS format: {}", SERVER_IP);
+                    }
+                } else {
+                    esp_println::println!("SERVER_ADDRESS not configured");
+                }
                 Timer::after_millis(5000).await;
             }
             _ => {

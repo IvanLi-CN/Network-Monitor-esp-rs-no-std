@@ -4,7 +4,7 @@ runner = "espflash flash --monitor"
 [build]
 rustflags = [
   "-C", "link-arg=-Tlinkall.x",
-  "-C", "link-arg=-Trom_functions.x",
+  # "-C", "link-arg=-Trom_functions.x", # Not needed in esp-hal 1.0.0-beta.1
   # Required to obtain backtraces (e.g. when using the "esp-backtrace" crate.)
   # NOTE: May negatively impact performance of produced code
   "-C", "force-frame-pointers",

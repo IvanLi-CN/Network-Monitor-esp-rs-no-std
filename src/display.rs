@@ -1,10 +1,9 @@
 use crate::bus::{NetSpeed, WiFiConnectStatus, NET_SPEED, WIFI_CONNECT_STATUS};
 use core::future::Future;
 use embassy_embedded_hal::shared_bus::asynch::spi::SpiDevice;
-use embassy_futures::select::select;
 use embassy_sync::blocking_mutex::raw::{CriticalSectionRawMutex, NoopRawMutex};
 use embassy_sync::mutex::Mutex;
-use embassy_time::{Delay, Duration, Instant, Ticker};
+use embassy_time::{Delay, Duration, Instant, Timer};
 use embedded_graphics::image::{Image, ImageRaw, ImageRawLE};
 use embedded_graphics::mono_font::ascii::FONT_10X20;
 use embedded_graphics::pixelcolor::{Rgb565, Rgb888};
@@ -16,10 +15,9 @@ use embedded_graphics::{
     text::{Alignment, Baseline, Text, TextStyleBuilder},
 };
 
-use esp_hal::peripherals::SPI2;
-use esp_hal::spi::master::dma::SpiDma;
-use esp_hal::spi::FullDuplexMode;
-use esp_hal::Async;
+// use esp_hal::peripherals::SPI2; // Not needed
+use esp_hal::spi::master::Spi;
+// use esp_hal::Async; // Not needed
 use heapless::String;
 use st7735::ST7735;
 
@@ -28,11 +26,11 @@ pub(crate) type DisplayST7735 = ST7735<
     SpiDevice<
         'static,
         NoopRawMutex,
-        SpiDma<'static, SPI2, esp_hal::dma::Channel0, FullDuplexMode, Async>,
-        esp_hal::gpio::Output<'static, esp_hal::gpio::GpioPin<10>>,
+        Spi<'static, esp_hal::Async>,
+        esp_hal::gpio::Output<'static>,
     >,
-    esp_hal::gpio::Output<'static, esp_hal::gpio::GpioPin<7>>,
-    esp_hal::gpio::Output<'static, esp_hal::gpio::GpioPin<8>>,
+    esp_hal::gpio::Output<'static>,
+    esp_hal::gpio::Output<'static>,
 >;
 
 #[embassy_executor::task]
@@ -58,12 +56,18 @@ pub(crate) async fn init_display(display: &'static mut DisplayST7735) {
                 WiFiConnectStatus::Connected => match gui.network_speed().await {
                     Ok(_) => {}
                     Err(_) => {
+                        // Add a small delay to prevent rapid switching
+                        drop(gui);
+                        Timer::after(Duration::from_millis(50)).await;
                         continue;
                     }
                 },
                 _ => {}
             };
             drop(gui);
+
+            // Add a small delay to control refresh rate
+            Timer::after(Duration::from_millis(50)).await;
         }
     }
 }
@@ -215,6 +219,7 @@ struct NetDataTrafficSpeedPage<'a> {
     prev_speed: NetSpeed,
     str_buff: [u8; 20],
     string: String<20>,
+    last_draw_time: Instant,
 }
 
 impl<'a> NetDataTrafficSpeedPage<'a> {
@@ -228,17 +233,28 @@ impl<'a> NetDataTrafficSpeedPage<'a> {
             prev_speed: NetSpeed::default(),
             str_buff: [0u8; 20],
             string: String::new(),
+            last_draw_time: Instant::MIN,
         }
     }
 }
 
 impl<'a> GUIPageFrame for NetDataTrafficSpeedPage<'a> {
     async fn frame(&mut self, display: &mut DisplayST7735) {
+        // Control refresh rate - only update every 100ms
+        if self.last_draw_time.elapsed().as_millis() < 100 {
+            return;
+        }
+
+        self.last_draw_time = Instant::now();
+
         let curr_speed_guard = NET_SPEED.lock().await;
         let curr_speed = *curr_speed_guard;
 
         self.prev_speed = curr_speed;
         drop(curr_speed_guard);
+
+        // Clear the display first to prevent overlapping
+        display.clear(Rgb565::BLACK).unwrap();
 
         // Direct
 
@@ -397,7 +413,6 @@ impl<'a> GUIPageFrame for NetDataTrafficSpeedPage<'a> {
             .unwrap();
         }
 
-        let mut ticker = Ticker::every(Duration::from_millis(20));
-        select(ticker.next(), display.flush()).await;
+        display.flush().await.unwrap();
     }
 }

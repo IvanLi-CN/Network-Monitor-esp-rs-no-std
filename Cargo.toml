@@ -6,40 +6,40 @@ name = "network-monitor-esp-rs-no-std"
 version = "0.1.0"
 
 [dependencies]
-esp-backtrace = { version = "0.13.0", features = [
+esp-backtrace = { version = "0.16.0", features = [
   "esp32c3",
   "panic-handler",
   "exception-handler",
   "println",
 ]}
-esp-hal = { version = "0.19.0", features = [
+esp-hal = { version = "=1.0.0-beta.1", features = [
+  "esp32c3",
+  "unstable",
+]}
+esp-hal-embassy = { version = "0.8.1", features = [
   "esp32c3",
 ]}
-esp-hal-embassy = { version = "0.2.0", features = [
+esp-println = { version = "0.14.0", features = ["esp32c3"] }
+esp-wifi = { version = "0.14.1", features = [
   "esp32c3",
-  "integrated-timers",
-]}
-esp-println = { version = "0.10.0", features = ["esp32c3"] }
-esp-wifi = { version = "0.7.1", features = [
-  "esp32c3",
-  "async",
   "wifi",
-  "dhcpv4",
-  "embassy-net",
 ]}
-esp-alloc = "0.4.0"
+esp-alloc = "0.8.0"
+esp-bootloader-esp-idf = "0.1.0"
 
-embassy-embedded-hal = "0.1.0"
-embassy-executor = { version = "0.5.1", features = ["nightly"] }
+embassy-embedded-hal = "0.3.0"
+embassy-executor = { version = "0.7.0", features = ["task-arena-size-32768"] }
 embassy-futures = "0.1.1"
-embassy-net = { version = "0.4.0", features = [
+embassy-net = { version = "0.7.0", features = [
   "dhcpv4",
   "udp",
   "dns",
   "medium-ethernet",
+  "tcp",
+  "multicast",
 ]}
-embassy-sync = "0.5.0"
-embassy-time = { version = "0.3.2", features = [] }
+embassy-sync = "0.6.2"
+embassy-time = { version = "0.4.0", features = ["generic-queue-8"] }
 embedded-graphics = "0.8.1"
 embedded-io-async = {version = "0.6.1"}
 
@@ -48,7 +48,7 @@ numtoa = "0.2.4"
 reqwless = "0.12.1"
 serde = {version = "1.0.210", default-features = false, features = ["derive"]}
 st7735 = {path = "./st7735"}
-static_cell = {version = "2.1.0", features = ["nightly"]}
+static_cell = "2.1.0"
 
 [profile.dev.package.esp-wifi]
 opt-level = 3
