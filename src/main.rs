@@ -2,7 +2,6 @@
 #![no_main]
 #![allow(incomplete_features)]
 
-
 use embassy_embedded_hal::shared_bus::asynch::spi::SpiDevice;
 // use fugit::rate::ExtU32; // Will use Hz instead
 use embassy_executor::Spawner;
@@ -14,13 +13,13 @@ use esp_backtrace as _;
 // use esp_hal::dma::DmaPriority; // Not needed in 1.0.0-beta.1
 use esp_hal::dma_buffers;
 use esp_hal::gpio::{Io, Output};
-use esp_hal::ledc::{self, LSGlobalClkSource, Ledc, LowSpeed};
 use esp_hal::ledc::channel::ChannelIFace;
 use esp_hal::ledc::timer::TimerIFace;
+use esp_hal::ledc::{self, LSGlobalClkSource, Ledc, LowSpeed};
 use esp_hal::rng::Rng;
+use esp_hal::spi::master::Spi;
 use esp_hal::timer::systimer::SystemTimer;
 use esp_hal::timer::timg::TimerGroup;
-use esp_hal::spi::master::Spi;
 use esp_println::println;
 // use esp_wifi::wifi::WifiDevice; // Not needed
 use st7735::ST7735;
@@ -60,13 +59,9 @@ async fn main(spawner: Spawner) {
 
     // Wi-Fi
 
-    static INIT: static_cell::StaticCell<esp_wifi::EspWifiController<'static>> = static_cell::StaticCell::new();
-    let init = INIT.init(esp_wifi::init(
-        timg0.timer0,
-        Rng::new(peripherals.RNG),
-        peripherals.RADIO_CLK,
-    )
-    .unwrap());
+    static INIT: static_cell::StaticCell<esp_wifi::EspWifiController<'static>> =
+        static_cell::StaticCell::new();
+    let init = INIT.init(esp_wifi::init(timg0.timer0, Rng::new(peripherals.RNG)).unwrap());
     let wifi = peripherals.WIFI;
     let (controller, interfaces) = esp_wifi::wifi::new(init, wifi).unwrap();
     let wifi_device = interfaces.sta;
@@ -74,17 +69,16 @@ async fn main(spawner: Spawner) {
     let seed = 1234; // very random, very secure seed
 
     // Init network stack
-    static STACK_RESOURCES: static_cell::StaticCell<StackResources<3>> = static_cell::StaticCell::new();
+    static STACK_RESOURCES: static_cell::StaticCell<StackResources<3>> =
+        static_cell::StaticCell::new();
     let stack_resources = STACK_RESOURCES.init(StackResources::<3>::new());
 
-    static STACK: static_cell::StaticCell<embassy_net::Stack<'static>> = static_cell::StaticCell::new();
-    static RUNNER: static_cell::StaticCell<embassy_net::Runner<'static, esp_wifi::wifi::WifiDevice<'static>>> = static_cell::StaticCell::new();
-    let (stack, runner) = embassy_net::new(
-        wifi_device,
-        config,
-        stack_resources,
-        seed
-    );
+    static STACK: static_cell::StaticCell<embassy_net::Stack<'static>> =
+        static_cell::StaticCell::new();
+    static RUNNER: static_cell::StaticCell<
+        embassy_net::Runner<'static, esp_wifi::wifi::WifiDevice<'static>>,
+    > = static_cell::StaticCell::new();
+    let (stack, runner) = embassy_net::new(wifi_device, config, stack_resources, seed);
     let stack = STACK.init(stack);
     let runner = RUNNER.init(runner);
 
@@ -106,14 +100,28 @@ async fn main(spawner: Spawner) {
         .with_mosi(sda)
         .into_async();
     let spi_mutex = Mutex::new(spi);
-    static SPI: static_cell::StaticCell<Mutex<NoopRawMutex, esp_hal::spi::master::Spi<'static, esp_hal::Async>>> = static_cell::StaticCell::new();
+    static SPI: static_cell::StaticCell<
+        Mutex<NoopRawMutex, esp_hal::spi::master::Spi<'static, esp_hal::Async>>,
+    > = static_cell::StaticCell::new();
     let spi = SPI.init(spi_mutex);
 
     // Display
 
-    let dc = Output::new(peripherals.GPIO7, esp_hal::gpio::Level::High, esp_hal::gpio::OutputConfig::default());
-    let rst = Output::new(peripherals.GPIO8, esp_hal::gpio::Level::High, esp_hal::gpio::OutputConfig::default());
-    let lcd_cs = Output::new(peripherals.GPIO10, esp_hal::gpio::Level::High, esp_hal::gpio::OutputConfig::default());
+    let dc = Output::new(
+        peripherals.GPIO7,
+        esp_hal::gpio::Level::High,
+        esp_hal::gpio::OutputConfig::default(),
+    );
+    let rst = Output::new(
+        peripherals.GPIO8,
+        esp_hal::gpio::Level::High,
+        esp_hal::gpio::OutputConfig::default(),
+    );
+    let lcd_cs = Output::new(
+        peripherals.GPIO10,
+        esp_hal::gpio::Level::High,
+        esp_hal::gpio::OutputConfig::default(),
+    );
     let spi_dev = SpiDevice::new(spi, lcd_cs);
 
     let width = 160;
@@ -132,7 +140,8 @@ async fn main(spawner: Spawner) {
         width,
         height,
     );
-    static DISPLAY: static_cell::StaticCell<display::DisplayST7735> = static_cell::StaticCell::new();
+    static DISPLAY: static_cell::StaticCell<display::DisplayST7735> =
+        static_cell::StaticCell::new();
     let display = DISPLAY.init(display);
 
     let mut ledc = Ledc::new(peripherals.LEDC);
