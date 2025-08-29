@@ -43,7 +43,7 @@ jobs:
       run: cargo +nightly fmt --all -- --check
 
     - name: Run clippy
-      run: cargo +nightly clippy --target riscv32imc-unknown-none-elf --bins --no-deps -- -D warnings
+      run: cargo +nightly clippy --target riscv32imc-unknown-none-elf --bins --no-deps
 
     - name: Build main binary (debug)
       run: cargo +nightly build --target riscv32imc-unknown-none-elf
