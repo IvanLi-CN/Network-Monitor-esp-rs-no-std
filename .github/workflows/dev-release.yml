@@ -22,7 +22,7 @@ jobs:
       with:
         toolchain: nightly
         targets: riscv32imc-unknown-none-elf
-        components: rust-src
+        components: rust-src, rustfmt, clippy
 
     - name: Install ESP tools
       run: |
