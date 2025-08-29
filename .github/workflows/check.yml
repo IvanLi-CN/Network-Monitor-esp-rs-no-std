@@ -16,12 +16,17 @@ jobs:
       with:
         submodules: 'recursive'
     
-    - name: Install ESP Rust toolchain
-      uses: esp-rs/xtensa-toolchain@v1.5
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
       with:
-        default: true
-        buildtargets: esp32c3
-        ldproxy: true
+        toolchain: nightly
+        targets: riscv32imc-unknown-none-elf
+        components: rust-src
+
+    - name: Install ESP tools
+      run: |
+        cargo install espflash
+        cargo install ldproxy
     
     - name: Cache cargo registry
       uses: actions/cache@v4
@@ -35,16 +40,16 @@ jobs:
           ${{ runner.os }}-esp-cargo-
     
     - name: Check code formatting
-      run: cargo +esp fmt --all -- --check
-    
+      run: cargo +nightly fmt --all -- --check
+
     - name: Run clippy
-      run: cargo +esp clippy --target riscv32imc-unknown-none-elf --bins --no-deps -- -D warnings
-    
+      run: cargo +nightly clippy --target riscv32imc-unknown-none-elf --bins --no-deps -- -D warnings
+
     - name: Build main binary (debug)
-      run: cargo +esp build --target riscv32imc-unknown-none-elf
-    
+      run: cargo +nightly build --target riscv32imc-unknown-none-elf
+
     - name: Build main binary (release)
-      run: cargo +esp build --target riscv32imc-unknown-none-elf --release
+      run: cargo +nightly build --target riscv32imc-unknown-none-elf --release
     
     - name: Check build artifacts
       run: |
