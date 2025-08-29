@@ -1,0 +1,142 @@
+name: Development Release
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  dev-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: 'recursive'
+        fetch-depth: 0
+    
+    - name: Install ESP Rust toolchain
+      uses: esp-rs/xtensa-toolchain@v1.5
+      with:
+        default: true
+        buildtargets: esp32c3
+        ldproxy: true
+    
+    - name: Cache cargo registry
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-esp-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-esp-cargo-
+    
+    - name: Build release binary
+      run: cargo +esp build --target riscv32imc-unknown-none-elf --release
+
+    - name: Install espflash
+      run: cargo install espflash
+
+    - name: Generate binary files
+      run: |
+        espflash save-image --chip esp32c3 --merge target/riscv32imc-unknown-none-elf/release/network-monitor-esp-rs-no-std network-monitor-esp-rs-no-std.bin
+        echo "Generated binary file: network-monitor-esp-rs-no-std.bin ($(stat -c%s network-monitor-esp-rs-no-std.bin) bytes)"
+    
+    - name: Generate development version
+      id: dev_version
+      run: |
+        # Generate development version: dev-YYYYMMDD-HHMMSS-short_commit_hash
+        DEV_VERSION="dev-$(date +'%Y%m%d-%H%M%S')-$(git rev-parse --short HEAD)"
+        echo "version=$DEV_VERSION" >> $GITHUB_OUTPUT
+        echo "Development version: $DEV_VERSION"
+    
+    - name: Create development release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ steps.dev_version.outputs.version }}
+        name: "Development Build ${{ steps.dev_version.outputs.version }}"
+        body: |
+          🚧 **Development Build**
+
+          **Commit Message:** ${{ github.event.head_commit.message }}
+          **Commit Hash:** ${{ github.sha }}
+          **Build Time:** $(date +'%Y-%m-%d %H:%M:%S UTC')
+
+          ⚠️ This is an automatically generated development version for testing purposes only.
+
+          ## File Description
+          - `network-monitor-esp-rs-no-std` - Main firmware file (ELF format)
+          - `network-monitor-esp-rs-no-std.bin` - Binary firmware file for flashing
+
+          ## How to Flash Firmware
+
+          ### Using espflash (recommended)
+          ```bash
+          # Install espflash
+          cargo install espflash
+
+          # Flash firmware
+          espflash flash --monitor network-monitor-esp-rs-no-std.bin
+          ```
+
+          ### Using esptool.py
+          ```bash
+          # Install esptool
+          pip install esptool
+
+          # Flash firmware
+          esptool.py --chip esp32c3 --port /dev/ttyUSB0 --baud 460800 write_flash 0x0 network-monitor-esp-rs-no-std.bin
+          ```
+
+          ## Hardware Requirements
+          - ESP32-C3 microcontroller
+          - ST7735 TFT display
+          - Network monitoring hardware setup
+        files: |
+          target/riscv32imc-unknown-none-elf/release/network-monitor-esp-rs-no-std
+          network-monitor-esp-rs-no-std.bin
+        prerelease: true
+        draft: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Clean up old development releases
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const { data: releases } = await github.rest.repos.listReleases({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+          });
+
+          // Keep the latest 10 development versions, delete older ones
+          const devReleases = releases
+            .filter(release => release.tag_name.startsWith('dev-'))
+            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+          if (devReleases.length > 10) {
+            const releasesToDelete = devReleases.slice(10);
+            for (const release of releasesToDelete) {
+              console.log(`Deleting old dev release: ${release.tag_name}`);
+              await github.rest.repos.deleteRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                release_id: release.id,
+              });
+
+              // Also delete the corresponding tag
+              try {
+                await github.rest.git.deleteRef({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: `tags/${release.tag_name}`,
+                });
+              } catch (error) {
+                console.log(`Failed to delete tag ${release.tag_name}: ${error.message}`);
+              }
+            }
+          }

@@ -1,0 +1,71 @@
+name: Code Check
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: 'recursive'
+    
+    - name: Install ESP Rust toolchain
+      uses: esp-rs/xtensa-toolchain@v1.5
+      with:
+        default: true
+        buildtargets: esp32c3
+        ldproxy: true
+    
+    - name: Cache cargo registry
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-esp-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-esp-cargo-
+    
+    - name: Check code formatting
+      run: cargo +esp fmt --all -- --check
+    
+    - name: Run clippy
+      run: cargo +esp clippy --target riscv32imc-unknown-none-elf --bins --no-deps -- -D warnings
+    
+    - name: Build main binary (debug)
+      run: cargo +esp build --target riscv32imc-unknown-none-elf
+    
+    - name: Build main binary (release)
+      run: cargo +esp build --target riscv32imc-unknown-none-elf --release
+    
+    - name: Check build artifacts
+      run: |
+        if [ ! -f target/riscv32imc-unknown-none-elf/debug/network-monitor-esp-rs-no-std ]; then
+          echo "Debug build failed: main binary not found"
+          exit 1
+        fi
+        if [ ! -f target/riscv32imc-unknown-none-elf/release/network-monitor-esp-rs-no-std ]; then
+          echo "Release build failed: main binary not found"
+          exit 1
+        fi
+        echo "Build successful:"
+        echo "- Debug binary size: $(stat -c%s target/riscv32imc-unknown-none-elf/debug/network-monitor-esp-rs-no-std) bytes"
+        echo "- Release binary size: $(stat -c%s target/riscv32imc-unknown-none-elf/release/network-monitor-esp-rs-no-std) bytes"
+    
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      if: success()
+      with:
+        name: build-artifacts-${{ github.sha }}
+        path: |
+          target/riscv32imc-unknown-none-elf/debug/network-monitor-esp-rs-no-std
+          target/riscv32imc-unknown-none-elf/release/network-monitor-esp-rs-no-std
+        retention-days: 7
