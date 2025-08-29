@@ -1,7 +1,6 @@
 #![no_std]
 /// ST7735 driver
 /// Fork of https://github.com/kalkyl/st7735-embassy
-
 pub mod instruction;
 use crate::instruction::Instruction;
 use core::convert::Infallible;
@@ -351,10 +350,7 @@ where
 
 extern crate embedded_graphics_core;
 use self::embedded_graphics_core::{
-    pixelcolor::{
-        raw::RawU16,
-        Rgb565,
-    },
+    pixelcolor::{raw::RawU16, Rgb565},
     prelude::*,
 };
 
