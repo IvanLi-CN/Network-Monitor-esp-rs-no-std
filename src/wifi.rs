@@ -5,10 +5,7 @@ use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex};
 use embassy_time::{Duration, Timer};
 use esp_backtrace as _;
 use esp_println::println;
-use esp_wifi::wifi::{
-    ClientConfiguration, Configuration, WifiController, WifiEvent,
-    WifiState,
-};
+use esp_wifi::wifi::{ClientConfiguration, Configuration, WifiController, WifiEvent, WifiState};
 
 const SSID: &str = env!("SSID");
 const PASSWORD: &str = env!("PASSWORD");
@@ -88,6 +85,8 @@ pub async fn get_ip_addr(stack: &'static Stack<'static>) {
 }
 
 #[embassy_executor::task]
-pub async fn net_task(runner: &'static mut embassy_net::Runner<'static, esp_wifi::wifi::WifiDevice<'static>>) {
+pub async fn net_task(
+    runner: &'static mut embassy_net::Runner<'static, esp_wifi::wifi::WifiDevice<'static>>,
+) {
     runner.run().await
 }

@@ -1,0 +1,19 @@
+pre-commit:
+  parallel: true
+  commands:
+    fmt:
+      glob: "*.{rs}"
+      run: cargo +esp fmt
+      stage_fixed: true
+    clippy:
+      glob: "*.{rs}"
+      run: cargo +esp clippy --target riscv32imc-unknown-none-elf
+    markdown-lint:
+      glob: "**/*.md"
+      run: bunx markdownlint-cli2 {staged_files}
+      stage_fixed: true
+
+commit-msg:
+  commands:
+    commitlint:
+      run: bunx commitlint --edit {1}

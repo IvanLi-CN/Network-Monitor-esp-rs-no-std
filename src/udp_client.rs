@@ -9,7 +9,6 @@ use embassy_time::Timer;
 use esp_backtrace as _;
 // use esp_wifi::wifi::WifiDevice; // Not needed
 
-
 use crate::bus::{NetSpeed, WiFiConnectStatus, NET_SPEED, WIFI_CONNECT_STATUS};
 
 static SERVER_IP: &str = env!("SERVER_ADDRESS");

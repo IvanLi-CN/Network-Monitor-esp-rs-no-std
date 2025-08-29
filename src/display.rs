@@ -21,54 +21,47 @@ use esp_hal::spi::master::Spi;
 use heapless::String;
 use st7735::ST7735;
 
-
 pub(crate) type DisplayST7735 = ST7735<
-    SpiDevice<
-        'static,
-        NoopRawMutex,
-        Spi<'static, esp_hal::Async>,
-        esp_hal::gpio::Output<'static>,
-    >,
+    SpiDevice<'static, NoopRawMutex, Spi<'static, esp_hal::Async>, esp_hal::gpio::Output<'static>>,
     esp_hal::gpio::Output<'static>,
     esp_hal::gpio::Output<'static>,
 >;
 
 #[embassy_executor::task]
 pub(crate) async fn init_display(display: &'static mut DisplayST7735) {
+    let mut gui: GUI<'static> = GUI::new(display);
+
+    gui.init().await;
+
+    static GUI: static_cell::StaticCell<Mutex<CriticalSectionRawMutex, GUI<'static>>> =
+        static_cell::StaticCell::new();
+    let gui = GUI.init(Mutex::<CriticalSectionRawMutex, _>::new(gui));
+
+    let mut wifi_status: WiFiConnectStatus;
+
     loop {
-        let mut gui: GUI<'static> = GUI::new(display);
+        let wifi_status_guard = WIFI_CONNECT_STATUS.lock().await;
+        wifi_status = *wifi_status_guard;
+        drop(wifi_status_guard);
 
-        gui.init().await;
+        let mut gui = gui.lock().await;
+        match wifi_status {
+            WiFiConnectStatus::Connecting => gui.wifi_connecting_display().await,
+            WiFiConnectStatus::Connected => match gui.network_speed().await {
+                Ok(_) => {}
+                Err(_) => {
+                    // Add a small delay to prevent rapid switching
+                    drop(gui);
+                    Timer::after(Duration::from_millis(50)).await;
+                    continue;
+                }
+            },
+            _ => {}
+        };
+        drop(gui);
 
-        static GUI: static_cell::StaticCell<Mutex<CriticalSectionRawMutex, GUI<'static>>> = static_cell::StaticCell::new();
-        let gui = GUI.init(Mutex::<CriticalSectionRawMutex, _>::new(gui));
-
-        let mut wifi_status: WiFiConnectStatus;
-
-        loop {
-            let wifi_status_guard = WIFI_CONNECT_STATUS.lock().await;
-            wifi_status = *wifi_status_guard;
-            drop(wifi_status_guard);
-
-            let mut gui = gui.lock().await;
-            match wifi_status {
-                WiFiConnectStatus::Connecting => gui.wifi_connecting_display().await,
-                WiFiConnectStatus::Connected => match gui.network_speed().await {
-                    Ok(_) => {}
-                    Err(_) => {
-                        // Add a small delay to prevent rapid switching
-                        drop(gui);
-                        Timer::after(Duration::from_millis(50)).await;
-                        continue;
-                    }
-                },
-                _ => {}
-            };
-            drop(gui);
-
-            // Add a small delay to control refresh rate
-            Timer::after(Duration::from_millis(50)).await;
-        }
+        // Add a small delay to control refresh rate
+        Timer::after(Duration::from_millis(50)).await;
     }
 }
 
